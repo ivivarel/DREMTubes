@@ -13,6 +13,19 @@ verbose = False
 EvtOffset = -1000
 doNotMerge = False
 
+''' 
+This dictionary is the one that be used to deal with the 0xFFFFFFFF trigger mask issue. Each 0xFFFFFFFF determines a block of entries potentially with a different offset.
+
+The mapping is
+
+last entry determining a block -----> offset for that block 
+
+This way it should be straightforward to determine the offset corresponding to a given entry
+
+'''
+
+evFFFFdict = {}
+
 def main():
     import argparse                                                                      
     parser = argparse.ArgumentParser(description='This script runs the merging of the "SiPM" and the "PMT" daq events')
@@ -32,8 +45,12 @@ def main():
 ####### main function to merge SiPM and PMT root files with names specified as arguments
     
 def CreateBlendedFile(SiPMFileName,DaqFileName,outputfilename):
+
+#### opening input and output files
+    
     SiPMinfile = None
     Daqinfile = None
+    
     try:
         SiPMinfile = ROOT.TFile.Open(SiPMFileName)
         SiPMinfile.IsOpen()
@@ -48,17 +65,14 @@ def CreateBlendedFile(SiPMFileName,DaqFileName,outputfilename):
         print "File " + DaqFileName + " not found. Exiting....."
         return -1
 
-
     OutputFile = ROOT.TFile.Open(outputfilename,"recreate")
 
-    ##### Start by copying everything which is not controversial
+    #### Here we go
+
+    ### Get the trees
 
     if not (SiPMMetaDataTreeName in SiPMinfile.GetListOfKeys()):
         print "Cannot find tree with name " + SiPMMetaDataTreeName + " in file " + SiPMinfile.GetName()
-
-    ### Check the alignment
-
-
 
     if not (DaqTreeName in Daqinfile.GetListOfKeys()):
         print "Cannot find tree with name " + DaqTreeName + " in file " + DaqInfile.GetName()
@@ -67,11 +81,12 @@ def CreateBlendedFile(SiPMFileName,DaqFileName,outputfilename):
     DaqInputTree = Daqinfile.Get(DaqTreeName)
     SiPMInputTree = SiPMinfile.Get(SiPMTreeName)
 
-    ###### Do something to understand the offset
+    ###### Buiild the offset dictionary
 
-    global EvtOffset
-    EvtOffset = DetermineOffset(SiPMInputTree,DaqInputTree)
+    DetermineOffset(SiPMInputTree,DaqInputTree)
 
+    #### Stop here if you do not want to merge
+    
     if doNotMerge:
         return 
     
@@ -105,6 +120,9 @@ def CreateBlendedFile(SiPMFileName,DaqFileName,outputfilename):
 
 
 # main function to reorder and merge the SiPM file
+
+
+##### DO not use for the moment, need to deal with offset first
 
 def CloneSiPMTree(DaqInputTree,SiPMInput,OutputFile):
     newTree = OutputFile.Get(SiPMNewTreeName)
@@ -144,6 +162,8 @@ def CloneSiPMTree(DaqInputTree,SiPMInput,OutputFile):
     print "Merging with an offset of " + str(EvtOffset)
     print "Is the output Verbose? " + str(verbose)
 
+    EvtOffset = 0
+    
     for daq_ev in range(0,totalNumberOfEvents):
         if verbose:
             if (daq_ev%1000 == 0):
@@ -166,17 +186,30 @@ def CloneSiPMTree(DaqInputTree,SiPMInput,OutputFile):
         
         newTree.Fill()
 
-
+        
+##### The purppose of this function is to build the event offset matrix
+        
 def DetermineOffset(SiPMTree,DAQTree):
     ##### build a list of entries of pedestal events in the DAQ Tree
+
+    #Speed up 
     DAQTree.SetBranchStatus("*",0)
     DAQTree.SetBranchStatus("TriggerMask",1)
+
+    # List of pedestal events, and of all events.
     pedList = set()
     evList = set()
+
+    #### Dealing with FFFFFFFF - need to create entries for teh dic
+    
     for iev,ev in enumerate(DAQTree):
+        # TriggerMask = 6 marks a pedestal event
         if ev.TriggerMask == 6:
             pedList.add(iev)
+        if ev.TriggerMask == 0xFFFFFFFF:
+            print 'ok'
         evList.add(iev)
+        
 #    print pedList
     DAQTree.SetBranchStatus("*",1)
     ##### Now build a list of missing TriggerId in the SiPM tree
@@ -188,6 +221,10 @@ def DetermineOffset(SiPMTree,DAQTree):
     SiPMTree.SetBranchStatus("*",1)
     ### Find the missing TriggerId
     TrigIdComplement = evList - TriggerIdList
+
+    
+
+    
     ### Scan possible offsets to find out for which one we get the best match between the pedList and the missing TriggerId
 
     minOffset = -1000
@@ -207,14 +244,6 @@ def DetermineOffset(SiPMTree,DAQTree):
     print "Minimum value " + str(minLen) + " occurring for " + str(minOffset) + " offset"
 
     return minOffset
-
-
-
-        
-
-
-        
-    
 
 
 if __name__ == "__main__":    

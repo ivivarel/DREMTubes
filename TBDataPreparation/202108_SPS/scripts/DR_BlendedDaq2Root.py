@@ -206,15 +206,11 @@ def DetermineOffset(SiPMTree,DAQTree):
         print "Offset " + str(offset) + ": " + str(diffLen[offset]) + " ped triggers where SiPM fired"
     print "Minimum value " + str(minLen) + " occurring for " + str(minOffset) + " offset"
 
-    return minOffset
-
-
-
-        
-
-
-        
+    offset_set = {x+minOffset for x in pedList}
+    diffSet =  offset_set - TrigIdComplement
+    print diffSet
     
+    return minOffset
 
 
 if __name__ == "__main__":    

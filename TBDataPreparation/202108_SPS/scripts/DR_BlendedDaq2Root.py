@@ -50,7 +50,7 @@ def CreateBlendedFile(SiPMFileName,DaqFileName,outputfilename):
         return -1
 
 
-    OutputFile = ROOT.TFile.Open(outputfilename,"recreate")
+
 
     ##### Start by copying everything which is not controversial
 
@@ -75,6 +75,8 @@ def CreateBlendedFile(SiPMFileName,DaqFileName,outputfilename):
 
     if doNotMerge:
         return 
+
+    OutputFile = ROOT.TFile.Open(outputfilename,"recreate")
     
     newDaqInputTree = DaqInputTree.CloneTree()
     OutputFile.cd()
